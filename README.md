@@ -2,5 +2,5 @@
 assembler fetch
 
 
-cd The-Rose_from-Garden
+cd The-Rose-from-Garden
 ./rose
