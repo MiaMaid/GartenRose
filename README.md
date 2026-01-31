@@ -1,6 +1,6 @@
-# The-Rose-from-Garden
+# GartenRose
 assembler fetch
 
 
-cd The-Rose-from-Garden
+cd GartenRose
 ./rose
