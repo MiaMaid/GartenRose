@@ -27,21 +27,23 @@ section .data
     path_mem  db "/proc/meminfo", 0
 
     cpu_target db "model name", 0
-    mem_target db "MemTotal", 0
+    mem_total_target db "MemTotal", 0
+    mem_avail_target db "MemAvailable", 0
+    mem_divider db " / ", 0
     mem_suffix db " MB", 10, 0
     env_user   db "USER=", 0
 
 section .bss
     buffer resb 4096
     num_buf resb 32
+    total_mem resq 1
+    avail_mem resq 1
 
 section .text
     global _start
 
 _start:
-
- mov rbp, rsp
-
+    mov rbp, rsp
 
     ; --- User ---
     mov rsi, rose_0
@@ -100,16 +102,110 @@ _start:
     xor rdi, rdi
     syscall
 
-    print_user_name:
+print_mem_in_mb:
+
+    mov rax, 2
+    mov rdi, path_mem
+    xor rsi, rsi
+    syscall
+    mov rdi, rax
+    mov rax, 0
+    mov rsi, buffer
+    mov rdx, 4096
+    syscall
+
+    mov rsi, buffer
+    mov rdx, mem_total_target
+    call find_value
+    shr rax, 10             ; KB -> MB
+    mov [total_mem], rax
+
+    mov rsi, buffer
+    mov rdx, mem_avail_target
+    call find_value
+    shr rax, 10             ; KB -> MB
+    mov [avail_mem], rax
+
+    mov rax, [total_mem]
+    sub rax, [avail_mem]
+
+    call print_number
+
+    mov rsi, mem_divider
+    call print_string
+
+    mov rax, [total_mem]
+    call print_number
+
+    mov rsi, mem_suffix
+    call print_string
+    ret
+find_value:
+.next_line:
+    mov rdi, rdx
+    mov rbx, rsi
+.match:
+    mov al, [rdi]
+    test al, al
+    jz .found
+    cmp al, [rbx]
+    jne .skip_line
+    inc rdi
+    inc rbx
+    jmp .match
+.skip_line:
+    inc rsi
+    cmp byte [rsi], 0
+    je .not_found
+    cmp byte [rsi-1], 10
+    jne .skip_line
+    jmp .next_line
+.found:
+    inc rbx
+    cmp byte [rbx], ':'
+    je .found
+    cmp byte [rbx], ' '
+    je .found
+    xor rax, rax
+    xor rcx, rcx
+.atoi:
+    mov cl, [rbx]
+    cmp cl, '0'
+    jb .exit
+    cmp cl, '9'
+    ja .exit
+    sub cl, '0'
+    imul rax, 10
+    add rax, rcx
+    inc rbx
+    jmp .atoi
+.exit:
+    ret
+.not_found:
+    xor rax, rax
+    ret
+print_number:
+    mov rdi, num_buf + 31
+    mov byte [rdi], 0
+    mov rbx, 10
+.itoa:
+    xor rdx, rdx
+    div rbx
+    add dl, '0'
+    dec rdi
+    mov [rdi], dl
+    test rax, rax
+    jnz .itoa
+    mov rsi, rdi
+    call print_string
+    ret
+print_user_name:
     mov rcx, [rbp]
     lea rsi, [rbp + 8 + rcx*8 + 8]
 .next_env:
     mov rdi, [rsi]
     test rdi, rdi
     jz .unknown
-
-    ; for user
-    mov rax, [env_user]
     cmp dword [rdi], 'USER'
     jne .skip
     cmp byte [rdi+4], '='
@@ -129,77 +225,6 @@ _start:
     call print_newline
     ret
     .unk_str db "unknown", 0
-
-print_mem_in_mb:
-    mov rax, 2
-    mov rdi, path_mem
-    xor rsi, rsi
-    syscall
-    mov rdi, rax
-    mov rax, 0
-    mov rsi, buffer
-    mov rdx, 4096
-    syscall
-    mov rsi, buffer
-.find_mem:
-    mov rdi, mem_target
-    mov rbx, rsi
-.match:
-    mov al, [rdi]
-    test al, al
-    jz .found
-    cmp al, [rbx]
-    jne .next_line
-    inc rdi
-    inc rbx
-    jmp .match
-.next_line:
-    inc rsi
-    cmp byte [rsi], 0
-    je .done
-    cmp byte [rsi-1], 10
-    jne .next_line
-    jmp .find_mem
-
-.found:
-    inc rbx
-    cmp byte [rbx], ':'
-    je .found
-    cmp byte [rbx], ' '
-    je .found
-    xor rax, rax
-    xor rcx, rcx
-.atoi:
-    mov cl, [rbx]
-    cmp cl, '0'
-    jb .div_1024
-    cmp cl, '9'
-    ja .div_1024
-    sub cl, '0'
-    imul rax, 10
-    add rax, rcx
-    inc rbx
-    jmp .atoi
-
-.div_1024:
-    shr rax, 10
-    mov rdi, num_buf + 31
-    mov byte [rdi], 0
-    mov rbx, 10
-.itoa:
-    xor rdx, rdx
-    div rbx
-    add dl, '0'
-    dec rdi
-    mov [rdi], dl
-    test rax, rax
-    jnz .itoa
-    mov rsi, rdi
-    call print_string
-    mov rsi, mem_suffix
-    call print_string
-.done:
-    ret
 
 print_rose_line:
     push rsi
