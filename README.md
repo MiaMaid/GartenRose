@@ -3,13 +3,13 @@ assembler fetch
 Просто впиши
 
 cd GartenRose
-//
+
 chmod +x rose
-//
+
 ./rose
 
 
-Или скомпилируйте вручную 
+Или cкомпилируй вручную 
 
 nasm -f elf64 rose.asm -o rose.o
 
