@@ -20,6 +20,7 @@ section .data
     kern_lbl  db "  Kernel:  ", 0
     cpu_lbl   db "  CPU:     ", 0
     mem_lbl   db "  Memory:  ", 0
+    de_lbl    db "  DE:      ", 0
 
     path_host db "/proc/sys/kernel/hostname", 0
     path_kern db "/proc/sys/kernel/osrelease", 0
@@ -31,7 +32,7 @@ section .data
     mem_avail_target db "MemAvailable", 0
     mem_divider db " / ", 0
     mem_suffix db " MB", 10, 0
-    env_user   db "USER=", 0
+    env_de_target db "XDG_CURRENT_DESKTOP=", 0
 
 section .bss
     buffer resb 4096
@@ -84,10 +85,14 @@ _start:
     call print_string
     call print_mem_in_mb
 
-    ; --- HUETA ---
+    ; --- DE ---
     mov rsi, rose_5
     call print_rose_line
-    call print_newline
+    mov rsi, de_lbl
+    call print_string
+    call print_de_name
+
+    ; --- HUETA ---
     mov rsi, rose_6
     call print_rose_line
     call print_newline
@@ -101,6 +106,39 @@ _start:
     mov rax, 60
     xor rdi, rdi
     syscall
+
+print_de_name:
+    mov rcx, [rbp]
+    lea rsi, [rbp + 8 + rcx*8 + 8]
+.next_env:
+    mov rdi, [rsi]
+    test rdi, rdi
+    jz .unknown
+    mov rbx, env_de_target
+    mov rdx, rdi
+.check_match:
+    mov al, [rbx]
+    test al, al
+    jz .found
+    cmp al, [rdx]
+    jne .skip
+    inc rbx
+    inc rdx
+    jmp .check_match
+.skip:
+    add rsi, 8
+    jmp .next_env
+.found:
+    mov rsi, rdx
+    call print_string
+    call print_newline
+    ret
+.unknown:
+    mov rsi, .unk_str
+    call print_string
+    call print_newline
+    ret
+    .unk_str db "n/a", 0
 
 print_mem_in_mb:
 
