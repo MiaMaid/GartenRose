@@ -21,6 +21,7 @@ section .data
     cpu_lbl   db "  CPU:     ", 0
     mem_lbl   db "  Memory:  ", 0
     de_lbl    db "  DE:      ", 0
+    shl_lbl   db "  Shell:   ", 0
 
     path_host db "/proc/sys/kernel/hostname", 0
     path_kern db "/proc/sys/kernel/osrelease", 0
@@ -33,6 +34,7 @@ section .data
     mem_divider db " / ", 0
     mem_suffix db " MB", 10, 0
     env_de_target db "XDG_CURRENT_DESKTOP=", 0
+    env_shell_target db "SHELL=", 0
 
 section .bss
     buffer resb 4096
@@ -78,7 +80,7 @@ _start:
     mov rsi, cpu_target
     call print_filtered_line
 
-    ; --- Memory  ---
+    ; --- Memory ---
     mov rsi, rose_4
     call print_rose_line
     mov rsi, mem_lbl
@@ -92,10 +94,14 @@ _start:
     call print_string
     call print_de_name
 
-    ; --- HUETA ---
+    ; --- SH ---
     mov rsi, rose_6
     call print_rose_line
-    call print_newline
+    mov rsi, shl_lbl
+    call print_string
+    call print_shell_name
+
+    ; --- HUETA ---
     mov rsi, rose_7
     call print_rose_line
     call print_newline
@@ -106,6 +112,39 @@ _start:
     mov rax, 60
     xor rdi, rdi
     syscall
+
+print_shell_name:
+    mov rcx, [rbp]
+    lea rsi, [rbp + 8 + rcx*8 + 8]
+.next_env:
+    mov rdi, [rsi]
+    test rdi, rdi
+    jz .unknown
+    mov rbx, env_shell_target
+    mov rdx, rdi
+.check_match:
+    mov al, [rbx]
+    test al, al
+    jz .found
+    cmp al, [rdx]
+    jne .skip
+    inc rbx
+    inc rdx
+    jmp .check_match
+.skip:
+    add rsi, 8
+    jmp .next_env
+.found:
+    mov rsi, rdx
+    call print_string
+    call print_newline
+    ret
+.unknown:
+    mov rsi, .unk_str
+    call print_string
+    call print_newline
+    ret
+    .unk_str db "n/a", 0
 
 print_de_name:
     mov rcx, [rbp]
@@ -141,7 +180,6 @@ print_de_name:
     .unk_str db "n/a", 0
 
 print_mem_in_mb:
-
     mov rax, 2
     mov rdi, path_mem
     xor rsi, rsi
@@ -157,24 +195,18 @@ print_mem_in_mb:
     call find_value
     shr rax, 10             ; KB -> MB
     mov [total_mem], rax
-
     mov rsi, buffer
     mov rdx, mem_avail_target
     call find_value
     shr rax, 10             ; KB -> MB
     mov [avail_mem], rax
-
     mov rax, [total_mem]
     sub rax, [avail_mem]
-
     call print_number
-
     mov rsi, mem_divider
     call print_string
-
     mov rax, [total_mem]
     call print_number
-
     mov rsi, mem_suffix
     call print_string
     ret
