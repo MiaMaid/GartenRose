@@ -17,6 +17,6 @@ chmod +x rose
 
 nasm -f elf64 rose.asm -o rose.o
 
-ld rose.o -o rose
+ld -s -n -N --gc-sections rose.o -o rose
 
 ./rose
