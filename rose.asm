@@ -22,11 +22,13 @@ section .data
     mem_lbl   db "  Memory:  ", 0
     de_lbl    db "  DE:      ", 0
     shl_lbl   db "  Shell:   ", 0
+    init_lbl  db "  Init:    ", 0
 
     path_host db "/proc/sys/kernel/hostname", 0
     path_kern db "/proc/sys/kernel/osrelease", 0
     path_cpu  db "/proc/cpuinfo", 0
     path_mem  db "/proc/meminfo", 0
+    path_init_comm db "/proc/1/comm", 0
 
     cpu_target db "model name", 0
     mem_total_target db "MemTotal", 0
@@ -101,10 +103,14 @@ _start:
     call print_string
     call print_shell_name
 
-    ; --- HUETA ---
+    ; --- Init ---
     mov rsi, rose_7
     call print_rose_line
-    call print_newline
+    mov rsi, init_lbl
+    call print_string
+    call print_init_system
+
+    ; --- HUETA ---
     mov rsi, rose_8
     call print_rose_line
     call print_newline
@@ -112,6 +118,46 @@ _start:
     mov rax, 60
     xor rdi, rdi
     syscall
+
+print_init_system:
+    mov rax, 2
+    mov rdi, path_init_comm
+    xor rsi, rsi
+    syscall
+    test rax, rax
+    js .unknown
+
+    mov rdi, rax
+    mov rax, 0
+    mov rsi, buffer
+    mov rdx, 64
+    syscall
+    push rax
+    mov rax, 3
+    syscall
+    pop rdx
+    jle .unknown
+    dec rdx
+    cmp byte [buffer + rdx], 10
+    jne .no_ln
+    mov byte [buffer + rdx], 0
+    jmp .do_print
+.no_ln:
+    inc rdx
+    mov byte [buffer + rdx], 0
+
+.do_print:
+    mov rsi, buffer
+    call print_string
+    call print_newline
+    ret
+
+.unknown:
+    mov rsi, .unk_str
+    call print_string
+    call print_newline
+    ret
+    .unk_str db "n/a", 0
 
 print_shell_name:
     mov rcx, [rbp]
