@@ -29,6 +29,8 @@ section .data
     path_cpu  db "/proc/cpuinfo", 0
     path_mem  db "/proc/meminfo", 0
     path_init_comm db "/proc/1/comm", 0
+    path_openrc_check db "/run/openrc", 0
+    openrc_name db "OpenRC", 0
 
     cpu_target db "model name", 0
     mem_total_target db "MemTotal", 0
@@ -120,13 +122,24 @@ _start:
     syscall
 
 print_init_system:
+    mov rax, 4
+    mov rdi, path_openrc_check
+    mov rsi, buffer
+    syscall
+
+    test rax, rax
+    jnz .check_proccomm
+
+    mov rsi, openrc_name
+    jmp .do_print
+
+.check_proccomm:
     mov rax, 2
     mov rdi, path_init_comm
     xor rsi, rsi
     syscall
     test rax, rax
     js .unknown
-
     mov rdi, rax
     mov rax, 0
     mov rsi, buffer
@@ -136,18 +149,23 @@ print_init_system:
     mov rax, 3
     syscall
     pop rdx
+
+    test rdx, rdx
     jle .unknown
-    dec rdx
-    cmp byte [buffer + rdx], 10
-    jne .no_ln
-    mov byte [buffer + rdx], 0
-    jmp .do_print
-.no_ln:
-    inc rdx
-    mov byte [buffer + rdx], 0
+    mov rcx, 0
+.find_nl:
+    cmp byte [buffer + rcx], 10
+    je .found_nl
+    cmp byte [buffer + rcx], 0
+    je .found_nl
+    inc rcx
+    cmp rcx, rdx
+    jl .find_nl
+.found_nl:
+    mov byte [buffer + rcx], 0
+    mov rsi, buffer
 
 .do_print:
-    mov rsi, buffer
     call print_string
     call print_newline
     ret
@@ -157,7 +175,7 @@ print_init_system:
     call print_string
     call print_newline
     ret
-    .unk_str db "n/a", 0
+    .unk_str db "unknown", 0
 
 print_shell_name:
     mov rcx, [rbp]
